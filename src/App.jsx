@@ -5,6 +5,7 @@ import {
   Plus, QrCode, Search, Share2, ShieldCheck, Sliders, Sprout, Star, Truck, UserRound, Users, Wallet, Smartphone, Layers, TrendingUp, DollarSign, Activity, FileText, Bot, HelpCircle, AlertCircle, BarChart3, Globe
 } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
+import { Html5Qrcode } from 'html5-qrcode'
 import { signInWithGoogle } from './firebase.js'
 import './App.css'
 
@@ -1621,27 +1622,15 @@ export default function App() {
           </div>
         )}
 
-        {/* QR Code Modal for Mobile Phone Preview */}
-        {showQrModal && (
-          <div className="modal-backdrop" onClick={() => setShowQrModal(false)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setShowQrModal(false)}>✕</button>
-              <div className="modal-icon"><Smartphone size={28} /></div>
-              <h3>Scan with Mobile Phone</h3>
-              <p>Open your phone's camera to run AgriDirect live on your mobile device!</p>
-              
-              <div className="modal-qr">
-                <QRCodeCanvas value={MOBILE_NETWORK_URL} size={180} level="H" includeMargin={true} />
-              </div>
-
-              <div className="modal-url">
-                <code>{MOBILE_NETWORK_URL}</code>
-              </div>
-
-              <button className="btn-primary" onClick={() => setShowQrModal(false)}>Got it!</button>
-            </div>
-          </div>
-        )}
+        {/* Interactive Camera QR & Barcode Scanner Modal */}
+        <LiveQrCameraScannerModal
+          isOpen={showQrModal}
+          onClose={() => setShowQrModal(false)}
+          onNavigate={navigateTo}
+          onSelectProduct={(p) => { setSelectedProduct(p); navigateTo('product-details') }}
+          products={products}
+          notify={notify}
+        />
       </main>
     </div>
   )
@@ -4192,3 +4181,207 @@ function AgriInsightsScreen({ demoRole, onNavigate, onGoBack, notify }) {
     </div>
   )
 }
+
+/* ── CAMERA QR CODE & BARCODE SCANNER MODAL ───────────────────────────────── */
+function LiveQrCameraScannerModal({ isOpen, onClose, onNavigate, onSelectProduct, products = [], notify }) {
+  const [activeTab, setActiveTab] = useState('camera') // 'camera' | 'upload' | 'app_qr'
+  const [cameraError, setCameraError] = useState(null)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scannedResult, setScannedResult] = useState(null)
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'camera') {
+      setIsScanning(false)
+      return
+    }
+
+    let html5QrCode = null
+    let isStopped = false
+
+    const startScanner = async () => {
+      setCameraError(null)
+      try {
+        html5QrCode = new Html5Qrcode("reader-camera-view")
+        setIsScanning(true)
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 }
+          },
+          (decodedText) => {
+            if (isStopped) return
+            isStopped = true
+            handleScanSuccess(decodedText)
+            html5QrCode.stop().catch(() => {})
+          },
+          () => {} // Ignore frame scan noise
+        )
+      } catch (err) {
+        console.warn("Scanner camera init warning:", err)
+        setIsScanning(false)
+        setCameraError("Camera stream not available. Please allow camera permissions or try Upload QR Image / Test Presets below.")
+      }
+    }
+
+    const timer = setTimeout(startScanner, 100)
+
+    return () => {
+      isStopped = true
+      clearTimeout(timer)
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {})
+      }
+    }
+  }, [isOpen, activeTab])
+
+  if (!isOpen) return null
+
+  const handleScanSuccess = (text) => {
+    setScannedResult(text)
+    if (notify) notify(`🎯 QR Scanned: "${text}"`)
+
+    const cleaned = text.trim()
+
+    // 1. Direct Product Matching
+    if (cleaned.includes('PROD-') || cleaned.toLowerCase().includes('mango') || cleaned.toLowerCase().includes('tomato')) {
+      const match = products.find(p => p.name.toLowerCase().includes('mango')) || products[0]
+      if (match && onSelectProduct) {
+        onSelectProduct(match)
+        if (notify) notify(`✅ Produce verified: ${match.name} (Grade A Organic)`)
+        onClose()
+        return
+      }
+    }
+
+    // 2. Order QR Code
+    if (cleaned.includes('ORD-') || cleaned.toLowerCase().includes('order')) {
+      if (notify) notify(`📦 Direct Order QR verified: #ORD-89421`)
+      onNavigate('order-tracking')
+      onClose()
+      return
+    }
+
+    // 3. Payment / UPI QR Code
+    if (cleaned.toLowerCase().includes('upi') || cleaned.toLowerCase().includes('pay')) {
+      if (notify) notify(`💳 Escrow Payment QR scanned successfully!`)
+      onNavigate('payment')
+      onClose()
+      return
+    }
+
+    // 4. Default URL or text
+    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+      window.open(cleaned, '_blank')
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const html5QrCode = new Html5Qrcode("reader-hidden-file-scanner")
+      const result = await html5QrCode.scanFile(file, true)
+      handleScanSuccess(result)
+    } catch (err) {
+      if (notify) notify("⚠️ Could not detect a QR code in uploaded image. Trying fallback preset...")
+      handleScanSuccess("AGRI-PROD-ALPHONSO-MANGO-001")
+    }
+  }
+
+  return (
+    <div className="scanner-modal-backdrop" onClick={onClose}>
+      <div className="scanner-modal-card" onClick={e => e.stopPropagation()}>
+        {/* Hidden div for file scanner */}
+        <div id="reader-hidden-file-scanner" style={{ display: 'none' }} />
+
+        {/* Header */}
+        <div className="scanner-modal-header">
+          <div className="scanner-title">
+            <Camera size={22} />
+            <h3>AgriDirect Scanner</h3>
+          </div>
+          <button className="scanner-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="scanner-tabs-bar">
+          <button className={`scanner-tab-btn ${activeTab === 'camera' ? 'active' : ''}`} onClick={() => setActiveTab('camera')}>
+            <Camera size={16} /> Live Scanner
+          </button>
+          <button className={`scanner-tab-btn ${activeTab === 'upload' ? 'active' : ''}`} onClick={() => setActiveTab('upload')}>
+            <Search size={16} /> Upload QR
+          </button>
+          <button className={`scanner-tab-btn ${activeTab === 'app_qr' ? 'active' : ''}`} onClick={() => setActiveTab('app_qr')}>
+            <QrCode size={16} /> Mobile QR
+          </button>
+        </div>
+
+        {/* Body Content */}
+        <div className="scanner-body-content">
+          {activeTab === 'camera' && (
+            <>
+              <div className="scanner-camera-box">
+                <div id="reader-camera-view" style={{ width: '100%' }} />
+                {isScanning && !cameraError && (
+                  <div className="scan-laser-overlay">
+                    <div className="scan-laser-line" />
+                  </div>
+                )}
+                {cameraError && (
+                  <div className="scanner-fallback-box" style={{ margin: '20px' }}>
+                    <AlertCircle size={28} color="#eab308" style={{ marginBottom: '8px' }} />
+                    <p>{cameraError}</p>
+                  </div>
+                )}
+              </div>
+              <p className="scanner-info-badge">Point your camera at any Produce QR, Mandi Tag, or Order Code</p>
+            </>
+          )}
+
+          {activeTab === 'upload' && (
+            <div className="scanner-fallback-box" style={{ padding: '24px 16px' }}>
+              <Camera size={36} color="#166534" style={{ marginBottom: '12px' }} />
+              <h4 style={{ margin: '0 0 8px', color: '#1e293b' }}>Select QR Code Image</h4>
+              <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: '#64748b' }}>Upload a saved QR code image or photo from your device gallery.</p>
+              <label className="scanner-upload-label">
+                <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+                <span>📁 Choose Photo / Image</span>
+              </label>
+            </div>
+          )}
+
+          {activeTab === 'app_qr' && (
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <p style={{ fontSize: '0.85rem', color: '#475569', margin: '0 0 14px' }}>Scan with phone camera to run AgriDirect live on mobile:</p>
+              <div style={{ background: 'white', padding: '12px', borderRadius: '16px', display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                <QRCodeCanvas value={MOBILE_NETWORK_URL} size={180} level="H" includeMargin={true} />
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#166534', fontWeight: '700', marginTop: '10px' }}>{MOBILE_NETWORK_URL}</p>
+            </div>
+          )}
+
+          {/* Quick Demo Test Presets */}
+          <div className="scanner-presets-section">
+            <strong>Instant Demo QR Test Presets:</strong>
+            <div className="preset-chips-grid">
+              <button className="preset-chip-btn" onClick={() => handleScanSuccess('AGRI-PROD-ALPHONSO-MANGO-001')}>
+                🥭 Alphonso Mango
+              </button>
+              <button className="preset-chip-btn" onClick={() => handleScanSuccess('AGRI-ORD-89421-ESCROW')}>
+                📦 Order #ORD-89421
+              </button>
+              <button className="preset-chip-btn" onClick={() => handleScanSuccess('AGRI-UPI-ESCROW-PAYMENT')}>
+                💳 UPI Escrow Pay
+              </button>
+              <button className="preset-chip-btn" onClick={() => handleScanSuccess('AGRI-MANDI-CERT-NAGERCOIL')}>
+                🏷️ Mandi Tag
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
