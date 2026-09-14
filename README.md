@@ -1,0 +1,138 @@
+﻿# AgriDirect
+
+AgriDirect is a full-stack agricultural marketplace prototype that connects farmers and buyers directly to improve price transparency, demand matching, and transaction trust.
+
+## Overview
+
+This project includes:
+- React + Vite frontend for the buyer and farmer marketplace experience
+- Spring Boot backend API for authentication, recommendations, and order actions
+- Android app shell for mobile support
+- Python recommendation service for pricing and demand analysis
+
+## Project Structure
+
+- `web/` – frontend application
+- `backend/` – Spring Boot API service
+- `android/` – Android app source
+- `services/recommendation/` – Python recommendation logic
+- `AGRIDIRECT.md` – product and business specification
+
+## Features
+
+- Farmer dashboard and product management
+- Buyer marketplace and catalog browsing
+- Local mandi price comparison
+- Smart matching between buyers and produce demand
+- Order tracking and delivery flow
+- Secure escrow-style payment flow
+- Role-based buyer/farmer experience
+
+## Tech Stack
+
+- Frontend: React, Vite, JavaScript
+- Backend: Java, Spring Boot
+- Android: Kotlin
+- Recommendation engine: Python
+
+## Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/kamalibaskar2007/farmer.git
+cd farmer
+```
+
+### 2. Install frontend dependencies
+
+```bash
+npm install
+```
+
+### 3. Run the frontend locally
+
+```bash
+npm run dev
+```
+
+The web app will be available at:
+
+```text
+http://localhost:5173/
+```
+
+### 4. Run the backend API
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+The API will be available at:
+
+```text
+http://localhost:8080
+```
+
+### 5. Build the frontend for production
+
+```bash
+npm run build
+```
+
+## API Endpoints
+
+The backend includes demo endpoints for the app flow:
+
+- `POST /api/auth/login`
+- `GET /api/products/{id}/recommendation`
+- `GET /api/products/{id}/matches`
+- `POST /api/orders/{id}/payment`
+- `POST /api/orders/{id}/delivery-confirmation`
+
+## Deployment
+
+### Frontend deployment
+
+Recommended: Vercel or Netlify
+
+1. Import the repository into Vercel.
+2. Set the project root to `web`.
+3. Use the build command:
+
+```bash
+npm run build
+```
+
+4. Use output directory:
+
+```text
+dist
+```
+
+A `vercel.json` rewrite file is included in the `web` folder to support SPA routing.
+
+### Backend deployment
+
+Recommended: Render or Railway
+
+1. Import the repository into Render.
+2. Set the service root directory to `backend`.
+3. Use the build command:
+
+```bash
+mvn package
+```
+
+4. Start the app using the generated JAR file.
+
+A `render.yaml` file is included at the repository root for quick deployment setup.
+
+## Notes
+
+This repository is currently a working prototype and demo application. The backend responses are intentionally lightweight and designed for demonstration purposes.
+
+## License
+
+This project is intended for educational and prototype use.
