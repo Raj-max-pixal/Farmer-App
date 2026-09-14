@@ -109,11 +109,11 @@ body.dark-theme .text-muted, .dark-theme .text-muted {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
+  padding: 16px 16px calc(84px + env(safe-area-inset-bottom, 0px)) 16px;
   -webkit-overflow-scrolling: touch;
 }
 
-.scroll-body.pad { padding: 20px; }
+.scroll-body.pad { padding: 20px 20px calc(84px + env(safe-area-inset-bottom, 0px)) 20px; }
 
 /* ── TOP NAV ─────────────────────────────────────────────────────────────── */
 .top-nav {
@@ -219,11 +219,14 @@ body.dark-theme .text-muted, .dark-theme .text-muted {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: 62px;
+  min-height: 64px;
+  height: auto;
   background: var(--bg-white);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-top: 6px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
 }
 
 .bottom-nav button {

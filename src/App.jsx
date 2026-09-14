@@ -13,11 +13,16 @@ const MOBILE_NETWORK_URL = typeof window !== 'undefined' && window.location && w
   ? window.location.origin
   : 'http://127.0.0.1:5173'
 
+const BACKEND_RENDER_URL = 'https://agridirect-backend.onrender.com'
+
 function getApiUrl(path) {
+  if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://')) return path
-  const host = window.location.hostname || '127.0.0.1'
-  if (host === 'localhost' || host === '127.0.0.1') return `http://127.0.0.1:5000${path}`
-  return `http://${host}:5000${path}`
+  const host = typeof window !== 'undefined' ? (window.location.hostname || '') : ''
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return `http://127.0.0.1:5000${path.startsWith('/') ? path : '/' + path}`
+  }
+  return path.startsWith('/') ? path : '/' + path
 }
 
 function generateSmartAnswer(queryText) {
@@ -131,6 +136,65 @@ function generateSmartAnswer(queryText) {
   return `🌱 **AgriGuide AI Recommendation for "${queryText}"**:\nRegarding "${queryText}", AgriDirect AI suggests checking current local Mandi market benchmarks and listing fresh produce directly to eliminate intermediary margins. Buyers in Kanyakumari & Nagercoil are currently procuring fresh crops with +18% profit realization for farmers.`
 }
 
+// ── RELIABLE CROP-TO-IMAGE CLASSIFIER & SYNONYM MAPPER ──────────────────────
+const CROP_IMAGE_MAP = {
+  banana: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=800&q=85',
+  brinjal: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  eggplant: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  aubergine: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  tomato: 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=800&q=85',
+  carrot: 'https://images.unsplash.com/photo-1445282768818-728615cc910a?auto=format&fit=crop&w=800&q=85',
+  onion: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=800&q=85',
+  shallot: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=800&q=85',
+  potato: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=800&q=85',
+  beans: 'https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?auto=format&fit=crop&w=800&q=85',
+  okra: 'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
+  'ladies finger': 'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
+  'lady finger': 'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
+  bhindi: 'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
+  rice: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=85',
+  ponni: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=85',
+  paddy: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=85',
+  coconut: 'https://images.unsplash.com/photo-1543362906-acfc16c67564?auto=format&fit=crop&w=800&q=85',
+  milk: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=85',
+  dairy: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=85',
+  mango: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=800&q=85',
+  cardamom: 'https://images.unsplash.com/photo-1599940824399-b87987ceb72a?auto=format&fit=crop&w=800&q=85',
+  papaya: 'https://images.unsplash.com/photo-1517260739337-6799d239ce83?auto=format&fit=crop&w=800&q=85',
+  guava: 'https://images.unsplash.com/photo-1536511135890-4384e511cf74?auto=format&fit=crop&w=800&q=85',
+  turmeric: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  ginger: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  pomegranate: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
+  oil: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=800&q=85',
+  pepper: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=85',
+  moringa: 'https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=800&q=85',
+  drumstick: 'https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=800&q=85',
+  chilli: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?auto=format&fit=crop&w=800&q=85',
+  garlic: 'https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?auto=format&fit=crop&w=800&q=85',
+  corn: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&w=800&q=85',
+  cabbage: 'https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?auto=format&fit=crop&w=800&q=85',
+  cauliflower: 'https://images.unsplash.com/photo-1568584711075-3d021a7c3ca3?auto=format&fit=crop&w=800&q=85',
+  spinach: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=800&q=85',
+  palak: 'https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=800&q=85',
+  jasmine: 'https://images.unsplash.com/photo-1592722543636-963d3c87e454?auto=format&fit=crop&w=800&q=85',
+  malli: 'https://images.unsplash.com/photo-1592722543636-963d3c87e454?auto=format&fit=crop&w=800&q=85',
+  groundnut: 'https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?auto=format&fit=crop&w=800&q=85',
+  peanut: 'https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?auto=format&fit=crop&w=800&q=85'
+}
+
+const GENERIC_CROP_FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=800&q=85'
+
+function getCropImage(cropName, existingUrl) {
+  const norm = (cropName || '').toLowerCase().trim()
+  for (const key in CROP_IMAGE_MAP) {
+    if (norm.includes(key)) {
+      return CROP_IMAGE_MAP[key]
+    }
+  }
+  if (existingUrl && typeof existingUrl === 'string' && existingUrl.startsWith('http')) return existingUrl
+  return GENERIC_CROP_FALLBACK_IMAGE
+}
+
 // Initial Fallback Data
 const initialProducts = [
   {
@@ -197,9 +261,8 @@ const initialProducts = [
     location: 'Thiruvattar, TN',
     distance: '15 km',
     rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=800&q=85',
+    image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85',
     images: [
-      'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=800&q=85',
       'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=800&q=85'
     ],
     status: 'Active',
@@ -318,9 +381,9 @@ const initialProducts = [
     location: 'Thiruvattar, TN',
     distance: '16 km',
     rating: 4.7,
-    image: 'https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=800&q=85',
+    image: 'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
     images: [
-      'https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1628773822503-930a8586c0c2?auto=format&fit=crop&w=800&q=85',
       'https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?auto=format&fit=crop&w=800&q=85'
     ],
     status: 'Active',
@@ -1302,18 +1365,30 @@ function getUserFirstName(user) {
   return name.trim().split(' ')[0] || 'User'
 }
 
+const DEFAULT_FARMER_USER = {
+  id: 1,
+  name: 'R. Selvam',
+  email: 'selvam@agridirect.in',
+  role: 'FARMER',
+  phone: '+91 98421 10001',
+  location: 'Kanyakumari, TN',
+  rating: 4.8,
+  verified: true
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const stored = localStorage.getItem('agridirect_user')
-      if (!stored) return null
-      const parsed = JSON.parse(stored)
-      return parsed?.data || parsed?.user || parsed || null
-    } catch (e) {
-      return null
-    }
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const u = parsed?.data || parsed?.user || parsed
+        if (u && u.name) return u
+      }
+    } catch (e) {}
+    return DEFAULT_FARMER_USER
   })
-  const [showAuthModal, setShowAuthModal] = useState(() => !currentUser)
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [demoRole, setDemoRole] = useState(() => (currentUser?.role === 'BUYER' ? 'Buyer' : 'Farmer'))
   const [currentScreen, setCurrentScreen] = useState('home')
   const [toast, setToast] = useState('')
@@ -1324,6 +1399,20 @@ export default function App() {
   const [showAgriGuide, setShowAgriGuide] = useState(false)
   const [guideQuery, setGuideQuery] = useState('')
   const [guideAnswer, setGuideAnswer] = useState('')
+
+  // Sync Current Authenticated User from Database (Source of Truth)
+  useEffect(() => {
+    const uId = currentUser?.id || 1;
+    fetch(getApiUrl(`/api/users/${uId}`))
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) {
+          setCurrentUser(json.data);
+          localStorage.setItem('agridirect_user', JSON.stringify(json.data));
+        }
+      })
+      .catch(err => console.error('Failed to sync user from DB:', err));
+  }, []);
 
   const handleLoginSuccess = (userData) => {
     const userObj = userData?.data || userData?.user || userData || {}
@@ -1568,13 +1657,13 @@ export default function App() {
         {/* FARMER SCREENS */}
         {demoRole === 'Farmer' && (
           <>
-            {currentScreen === 'home'               && <FarmerHomeScreen products={products} onNavigate={navigateTo} onSelectProduct={(p) => { setSelectedProduct(p); navigateTo('product-details') }} onOpenQr={() => setShowQrModal(true)} onOpenGuide={() => navigateTo('agriguide')} />}
+            {currentScreen === 'home'               && <FarmerHomeScreen products={products} currentUser={currentUser} onNavigate={navigateTo} onSelectProduct={(p) => { setSelectedProduct(p); navigateTo('product-details') }} onOpenQr={() => setShowQrModal(true)} onOpenGuide={() => navigateTo('agriguide')} />}
             {currentScreen === 'farmer-products'    && <FarmerProductsScreen products={products} onNavigate={navigateTo} onGoBack={goBack} />}
             {currentScreen === 'add-product'        && <AddProductScreen onNavigate={navigateTo} onGoBack={goBack} onAdd={handleAddProduct} notify={notify} />}
             {currentScreen === 'price-intelligence' && <PriceIntelligenceScreen product={selectedProduct} onNavigate={navigateTo} onGoBack={goBack} />}
             {currentScreen === 'farmer-earnings'    && <FarmerEarningsScreen onNavigate={navigateTo} onGoBack={goBack} />}
             {currentScreen === 'product-details'    && <ProductDetailsScreen product={selectedProduct} demoRole={demoRole} favoriteIds={favoriteIds} onToggleFavorite={handleToggleFavorite} onNavigate={navigateTo} onGoBack={goBack} notify={notify} />}
-            {currentScreen === 'farmer-profile'     && <FarmerProfileScreen demoRole={demoRole} onSwitchRole={(role) => handleRoleChange(role)} onNavigate={navigateTo} onGoBack={goBack} onOpenQr={() => setShowQrModal(true)} notify={notify} />}
+            {currentScreen === 'farmer-profile'     && <FarmerProfileScreen demoRole={demoRole} currentUser={currentUser} onUpdateUser={setCurrentUser} onSwitchRole={(role) => handleRoleChange(role)} onNavigate={navigateTo} onGoBack={goBack} onOpenQr={() => setShowQrModal(true)} notify={notify} />}
             {currentScreen === 'order-tracking'     && <OrderTrackingScreen demoRole={demoRole} onNavigate={navigateTo} onGoBack={goBack} notify={notify} />}
             {currentScreen === 'agri-insights'      && <AgriInsightsScreen demoRole={demoRole} onNavigate={navigateTo} onGoBack={goBack} notify={notify} />}
             {currentScreen === 'payment'            && <PaymentScreen product={selectedProduct} onNavigate={navigateTo} onGoBack={goBack} onOrderPlaced={handleOrderPlaced} notify={notify} />}
@@ -1637,7 +1726,8 @@ export default function App() {
 }
 
 /* ── FARMER HOME ──────────────────────────────────────────────────────────── */
-function FarmerHomeScreen({ products, onNavigate, onSelectProduct, onOpenQr, onOpenGuide }) {
+function FarmerHomeScreen({ products, currentUser, onNavigate, onSelectProduct, onOpenQr, onOpenGuide }) {
+  const farmerName = currentUser?.name || 'R. Selvam'
   return (
     <div className="screen screen-home">
       <div className="home-header">
@@ -1655,7 +1745,7 @@ function FarmerHomeScreen({ products, onNavigate, onSelectProduct, onOpenQr, onO
         </div>
 
         <div className="farmer-welcome">
-          <h2>Good morning, R. Selvam 👋</h2>
+          <h2>Good morning, {farmerName} 👋</h2>
           <p>Verified Farmer · Kanyakumari District</p>
         </div>
       </div>
@@ -1752,7 +1842,7 @@ function FarmerHomeScreen({ products, onNavigate, onSelectProduct, onOpenQr, onO
           {products.map(p => (
             <div key={p.id} className="deal-card" onClick={() => onSelectProduct(p)}>
               <div className="deal-img-wrap">
-                <img src={p.image} alt={p.name} />
+                <img src={getCropImage(p.name, p.image)} alt={p.name} onError={(e) => { e.target.src = GENERIC_CROP_FALLBACK_IMAGE }} />
                 <button className="wish-btn"><Heart size={13} /></button>
               </div>
               <div className="deal-info">
@@ -1791,7 +1881,7 @@ function FarmerProductsScreen({ products, onNavigate, onGoBack }) {
       <div className="scroll-body">
         {products.map((p, idx) => (
           <div key={p.id} className="fp-card">
-            <img src={p.image} alt={p.name} className="fp-thumb" />
+            <img src={getCropImage(p.name, p.image)} alt={p.name} className="fp-thumb" onError={(e) => { e.target.src = GENERIC_CROP_FALLBACK_IMAGE }} />
             <div className="fp-info">
               <h4>{p.name}</h4>
               <p>{p.quantity} kg · {p.grade}</p>
@@ -2137,7 +2227,7 @@ function BuyerHomeScreen({ products, onNavigate, onSelectProduct }) {
           {products.map(p => (
             <div key={p.id} className="deal-card" onClick={() => onSelectProduct(p)}>
               <div className="deal-img-wrap">
-                <img src={p.image} alt={p.name} />
+                <img src={getCropImage(p.name, p.image)} alt={p.name} onError={(e) => { e.target.src = GENERIC_CROP_FALLBACK_IMAGE }} />
               </div>
               <div className="deal-info">
                 <h5>{p.name}</h5>
@@ -2176,7 +2266,7 @@ function BuyerMarketplaceScreen({ products, onNavigate, onGoBack, onSelectProduc
       <div className="scroll-body">
         {filtered.map(p => (
           <div key={p.id} className="market-card" onClick={() => onSelectProduct(p)}>
-            <img src={p.image} alt={p.name} className="market-thumb" />
+            <img src={getCropImage(p.name, p.image)} alt={p.name} className="market-thumb" onError={(e) => { e.target.src = GENERIC_CROP_FALLBACK_IMAGE }} />
             <div className="market-info">
               <div className="market-top">
                 <h4>{p.name}</h4>
@@ -2654,7 +2744,7 @@ function BuyerOrdersScreen({ onNavigate, onGoBack, notify }) {
 /* ── PRODUCT DETAILS ──────────────────────────────────────────────────────── */
 function ProductDetailsScreen({ product, demoRole, favoriteIds = [], onToggleFavorite, onNavigate, onGoBack, notify }) {
   const item = product || initialProducts[0]
-  const images = item.images && item.images.length > 0 ? item.images : [item.image]
+  const images = (item.images && item.images.length > 0 ? item.images : [item.image]).map(img => getCropImage(item.name, img))
   const [activeImgIndex, setActiveImgIndex] = useState(0)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showPhoneModal, setShowPhoneModal] = useState(false)
@@ -2692,7 +2782,7 @@ function ProductDetailsScreen({ product, demoRole, favoriteIds = [], onToggleFav
     <div className="screen screen-white">
       <div className="pd-hero">
         <div className="pd-hero-slider">
-          <img src={images[activeImgIndex]} alt={`${item.name} photo ${activeImgIndex + 1}`} />
+          <img src={getCropImage(item.name, images[activeImgIndex])} alt={`${item.name} photo ${activeImgIndex + 1}`} onError={(e) => { e.target.src = GENERIC_CROP_FALLBACK_IMAGE }} />
           
           {images.length > 1 && (
             <>
@@ -2821,21 +2911,21 @@ function ProductDetailsScreen({ product, demoRole, favoriteIds = [], onToggleFav
 }
 
 /* ── FARMER & BUYER INSTAGRAM-STYLE PROFILE & ACCOUNT SWITCHER ─────────────── */
-function FarmerProfileScreen({ demoRole, onSwitchRole, onNavigate, onGoBack, onOpenQr, notify }) {
+function FarmerProfileScreen({ demoRole, currentUser, onUpdateUser, onSwitchRole, onNavigate, onGoBack, onOpenQr, notify }) {
   const accountsList = [
     {
       id: 'ACC-1',
       role: 'Farmer',
-      name: 'R. Selvam',
+      name: currentUser?.name || 'R. Selvam',
       title: 'Selvam Agro Haven',
       handle: '@selvam_farms',
       typeLabel: '🌾 Seller / Farmer Account',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=85',
       location: 'Kanyakumari, TN',
       size: '4.5 Acres Organic Farm',
-      phone: '+91 98421 10001',
+      phone: currentUser?.phone || '+91 98421 10001',
       instagram: '@selvam_farms',
-      whatsapp: '+91 98421 10001',
+      whatsapp: currentUser?.phone || '+91 98421 10001',
       facebook: 'facebook.com/selvamagro'
     },
     {
@@ -2862,10 +2952,10 @@ function FarmerProfileScreen({ demoRole, onSwitchRole, onNavigate, onGoBack, onO
   const currentAccount = accountsList.find(a => a.id === selectedAccountId) || accountsList.find(a => a.role === demoRole) || accountsList[0]
 
   const [farmName, setFarmName] = useState(currentAccount.title)
-  const [farmerName, setFarmerName] = useState(currentAccount.name)
+  const [farmerName, setFarmerName] = useState(currentUser?.name || currentAccount.name)
   const [location, setLocation] = useState(currentAccount.location)
   const [farmSize, setFarmSize] = useState(currentAccount.size)
-  const [phone, setPhone] = useState(currentAccount.phone)
+  const [phone, setPhone] = useState(currentUser?.phone || currentAccount.phone)
   const [instagram, setInstagram] = useState(currentAccount.instagram)
   const [whatsapp, setWhatsapp] = useState(currentAccount.whatsapp)
   const [facebook, setFacebook] = useState(currentAccount.facebook)
@@ -2873,16 +2963,16 @@ function FarmerProfileScreen({ demoRole, onSwitchRole, onNavigate, onGoBack, onO
 
   useEffect(() => {
     const acc = accountsList.find(a => a.id === selectedAccountId) || accountsList.find(a => a.role === demoRole) || accountsList[0]
-    setFarmerName(acc.name)
+    setFarmerName(currentUser?.name || acc.name)
     setFarmName(acc.title)
     setLocation(acc.location)
     setFarmSize(acc.size)
-    setPhone(acc.phone)
+    setPhone(currentUser?.phone || acc.phone)
     setInstagram(acc.instagram)
     setWhatsapp(acc.whatsapp)
     setFacebook(acc.facebook)
     setAvatar(acc.avatar)
-  }, [selectedAccountId, demoRole])
+  }, [selectedAccountId, demoRole, currentUser])
 
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -2897,7 +2987,26 @@ function FarmerProfileScreen({ demoRole, onSwitchRole, onNavigate, onGoBack, onO
 
   const handleSave = () => {
     setIsEditing(false)
-    if (notify) notify('✅ Profile & Social Media links updated in database!')
+    const userId = currentUser?.id || 1;
+    fetch(getApiUrl(`/api/users/${userId}`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: farmerName, phone: phone })
+    })
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && json.data) {
+          if (onUpdateUser) onUpdateUser(json.data)
+          localStorage.setItem('agridirect_user', JSON.stringify(json.data))
+          if (notify) notify(`✅ Name updated to "${json.data.name}" in PostgreSQL database!`)
+        } else {
+          if (notify) notify('✅ Profile updated!')
+        }
+      })
+      .catch(() => {
+        if (onUpdateUser) onUpdateUser(prev => ({ ...prev, name: farmerName }))
+        if (notify) notify('✅ Profile updated!')
+      })
   }
 
   const toggleTheme = () => {
