@@ -205,6 +205,7 @@ End-to-end visibility from farm to doorstep.
 
 ## 📱 App Preview
 
+ Deployed Link : https://farmer-app-one.vercel.app/
 <div align="center">
 
 <!-- 🔽 Replace these with your actual app screenshots / GIF screen-recordings once ready 🔽 -->
